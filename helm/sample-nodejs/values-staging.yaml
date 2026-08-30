@@ -1,0 +1,25 @@
+# Staging environment overlay.
+# image.tag is managed by CI (.github/workflows/release.yml `deploy-staging`
+# job) — updated automatically on every merge to main, right after the image
+# is built, Trivy-scanned, versioned, and pushed to GHCR.
+
+replicaCount: 2
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+image:
+  tag: ""                 # overwritten by CI on every merge to main
+
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: staging.sample-nodejs.example.com
+      paths:
+        - path: /
+          pathType: Prefix

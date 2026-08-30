@@ -1,0 +1,28 @@
+# Dev environment overlay.
+# image.tag is managed by CI (.github/workflows/pr-checks.yml `deploy-dev`
+# job) — every push to an open PR overwrites it with that PR's freshly
+# built & Trivy-scanned image tag. Shared dev environment: whichever PR
+# pushed last "owns" it.
+
+replicaCount: 1
+
+autoscaling:
+  enabled: false          # single replica, nothing to autoscale
+
+podDisruptionBudget:
+  enabled: false
+
+topologySpreadConstraints:
+  enabled: false
+
+image:
+  tag: ""                 # overwritten by CI on every PR push
+
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: dev.sample-nodejs.example.com
+      paths:
+        - path: /
+          pathType: Prefix
