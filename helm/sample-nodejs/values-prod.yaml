@@ -9,7 +9,7 @@
 # defaults were written for.
 
 image:
-  tag: ""                 # overwritten by CI on prod promotion
+  tag: "v0.0.3"
 
 ingress:
   enabled: true
