@@ -1,0 +1,21 @@
+sample-nodejs has been deployed.
+
+Release:   {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+Image:     {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
+
+{{- if .Values.ingress.enabled }}
+
+Reach the app via Ingress:
+{{- range .Values.ingress.hosts }}
+  http://{{ .host }}{{ (first .paths).path }}
+{{- end }}
+Make sure the host resolves to your ingress controller (e.g. add it to /etc/hosts).
+{{- else }}
+
+The Service is ClusterIP. Port-forward to reach it locally:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "sample-nodejs.fullname" . }} 8080:{{ .Values.service.port }}
+  curl http://localhost:8080/my-app
+{{- end }}
+
+Health endpoints: /live (liveness), /ready (readiness), /metrics (Prometheus).

@@ -1,0 +1,16 @@
+apiVersion: v2
+name: sample-nodejs
+description: A Helm chart to deploy the sample-nodejs Express service to Kubernetes
+type: application
+# version    -> the chart version (bumped when the chart changes)
+# appVersion -> the default application/image version (overridden per release by CI)
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - nodejs
+  - express
+  - sample
+maintainers:
+  - name: OdedPerez
+sources:
+  - https://github.com/OdedPerez/sample-nodejs

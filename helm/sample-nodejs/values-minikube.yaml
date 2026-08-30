@@ -1,0 +1,40 @@
+# Local single-node (minikube) profile.
+# The chart ships with HA/multi-node features ON by default; this overlay turns
+# off the ones that add nothing (or cause trouble) on a one-node cluster.
+#
+#   helm upgrade --install sample-nodejs helm/sample-nodejs \
+#     -f helm/sample-nodejs/values-minikube.yaml \
+#     -n sample-nodejs --create-namespace
+#
+# Prereqs on minikube:
+#   minikube addons enable ingress          # for the Ingress below
+#   eval $(minikube docker-env) && docker build -t sample-nodejs:local .
+
+replicaCount: 1
+
+autoscaling:
+  enabled: false            # HPA needs metrics-server; pointless on a laptop
+
+podDisruptionBudget:
+  enabled: false            # with 1 replica, minAvailable:1 blocks drains
+
+topologySpreadConstraints:
+  enabled: false            # nothing to spread across on a single node
+
+image:
+  # Use the image built directly into minikube's Docker daemon instead of
+  # pulling from GHCR (see `minikube docker-env` in the prereqs above).
+  repository: sample-nodejs
+  tag: "local"
+  pullPolicy: IfNotPresent
+
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: sample-nodejs.local
+      paths:
+        - path: /
+          pathType: Prefix
+
+# Requests/limits stay — they're already tiny and keep the pod schedulable.

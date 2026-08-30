@@ -1,0 +1,161 @@
+# Default values for sample-nodejs.
+# This is a YAML-formatted file. Every environment (staging/prod) overrides a
+# thin slice of this via its own values file in the GitOps repo.
+
+replicaCount: 2
+
+image:
+  repository: ghcr.io/odedperez/sample-nodejs
+  # tag is intentionally empty -> defaults to .Chart.appVersion.
+  # CI overwrites this per release in the GitOps repo, never here.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+# --------------------------------------------------------------------------
+# Application configuration (rendered into a ConfigMap and mounted as env).
+# The sample app itself only reads PORT - these keys are illustrative, added
+# to demonstrate ConfigMap wiring end-to-end.
+# --------------------------------------------------------------------------
+config:
+  GREETING: "Hello from sample-nodejs on Kubernetes"
+  LOG_LEVEL: "info"
+
+# --------------------------------------------------------------------------
+# Secret values. In a real cluster these should come from Sealed Secrets /
+# External Secrets Operator / Vault - NOT committed in plaintext to Git.
+# `create: false` lets you reference a pre-existing secret via existingSecret.
+# The sample app doesn't consume this either - illustrative, for the same
+# reason as `config` above.
+# --------------------------------------------------------------------------
+secret:
+  create: true
+  existingSecret: ""
+  data:
+    API_TOKEN: "changeme-inject-via-sealed-secrets"
+
+# --------------------------------------------------------------------------
+# Pod- and container-level security hardening.
+# --------------------------------------------------------------------------
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  capabilities:
+    drop:
+      - ALL
+
+# --------------------------------------------------------------------------
+# Resource requests/limits. Requests drive scheduling & HPA; limits cap burst.
+# --------------------------------------------------------------------------
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 250m
+    memory: 128Mi
+
+# --------------------------------------------------------------------------
+# Health probes hitting the app's dedicated endpoints (see app.js).
+# --------------------------------------------------------------------------
+probes:
+  liveness:
+    path: /live
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 3
+  readiness:
+    path: /ready
+    initialDelaySeconds: 3
+    periodSeconds: 5
+    timeoutSeconds: 2
+    failureThreshold: 3
+  startup:
+    path: /live
+    initialDelaySeconds: 0
+    periodSeconds: 3
+    timeoutSeconds: 2
+    failureThreshold: 10
+
+containerPort: 8080
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+  annotations: {}
+
+# --------------------------------------------------------------------------
+# Ingress
+# --------------------------------------------------------------------------
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+  hosts:
+    - host: sample-nodejs.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+  #  - secretName: sample-nodejs-tls
+  #    hosts:
+  #      - sample-nodejs.example.com
+
+# --------------------------------------------------------------------------
+# Horizontal Pod Autoscaler
+# --------------------------------------------------------------------------
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# --------------------------------------------------------------------------
+# Availability / scheduling
+# --------------------------------------------------------------------------
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Spread pods across nodes for resilience.
+topologySpreadConstraints:
+  enabled: true
+  maxSkew: 1
+  topologyKey: kubernetes.io/hostname
+  whenUnsatisfiable: ScheduleAnyway
+
+# Optional egress/ingress lockdown.
+networkPolicy:
+  enabled: false
+
+# Prometheus Operator ServiceMonitor (bonus). Requires the CRD to be installed.
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  path: /metrics
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+podAnnotations: {}
