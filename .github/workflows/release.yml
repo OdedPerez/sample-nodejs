@@ -1,0 +1,160 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+env:
+  IMAGE_NAME: ghcr.io/odedperez/sample-nodejs
+  NODE_VERSION: "22"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run lint
+
+  version:
+    name: Bump version
+    runs-on: ubuntu-latest
+    needs: verify
+    permissions:
+      contents: write
+    outputs:
+      new_tag: ${{ steps.tag.outputs.new_tag }}
+      new_version: ${{ steps.tag.outputs.new_version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Conventional Commits since the last tag decide the bump:
+      # fix: -> patch, feat: -> minor, BREAKING CHANGE/! -> major.
+      - name: Bump version and push tag
+        id: tag
+        uses: mathieudutour/github-tag-action@v6.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          default_bump: patch
+          release_branches: main
+
+  build-scan-push:
+    name: Build, scan, push (release)
+    runs-on: ubuntu-latest
+    needs: version
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build image (local, for scanning)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: ${{ env.IMAGE_NAME }}:${{ needs.version.outputs.new_tag }}
+
+      # Blocks push (and therefore deployment) on any HIGH/CRITICAL finding.
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.IMAGE_NAME }}:${{ needs.version.outputs.new_tag }}
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          ignore-unfixed: true
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push image (post-scan)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ needs.version.outputs.new_tag }}
+            ${{ env.IMAGE_NAME }}:latest
+
+  deploy-staging:
+    name: Deploy to staging
+    runs-on: ubuntu-latest
+    needs: [version, build-scan-push]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Bump values-staging.yaml image tag + Chart.yaml appVersion
+        env:
+          IMAGE_TAG: ${{ needs.version.outputs.new_tag }}
+          APP_VERSION: ${{ needs.version.outputs.new_version }}
+        run: |
+          sed -i -E "s/^(  tag: ).*/\1\"${IMAGE_TAG}\"/" helm/sample-nodejs/values-staging.yaml
+          sed -i -E "s/^appVersion: .*/appVersion: \"${APP_VERSION}\"/" helm/sample-nodejs/Chart.yaml
+          grep "tag:" helm/sample-nodejs/values-staging.yaml
+          grep "appVersion:" helm/sample-nodejs/Chart.yaml
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add helm/sample-nodejs/values-staging.yaml helm/sample-nodejs/Chart.yaml
+          git commit -m "chore(staging): deploy ${{ needs.version.outputs.new_tag }} [skip ci]"
+          git push
+
+  deploy-prod:
+    name: Deploy to production
+    runs-on: ubuntu-latest
+    needs: [version, deploy-staging]
+    # Requires a "production" GitHub Environment with a required reviewer
+    # configured in repo settings - that's what actually makes this job
+    # pause for manual approval rather than just labeling the run.
+    environment: production
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Bump values-prod.yaml image tag
+        env:
+          IMAGE_TAG: ${{ needs.version.outputs.new_tag }}
+        run: |
+          sed -i -E "s/^(  tag: ).*/\1\"${IMAGE_TAG}\"/" helm/sample-nodejs/values-prod.yaml
+          grep "tag:" helm/sample-nodejs/values-prod.yaml
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add helm/sample-nodejs/values-prod.yaml
+          git commit -m "chore(prod): deploy ${{ needs.version.outputs.new_tag }} [skip ci]"
+          git push

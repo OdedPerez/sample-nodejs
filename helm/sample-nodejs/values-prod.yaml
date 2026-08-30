@@ -1,0 +1,25 @@
+# Production environment overlay.
+# image.tag is managed by CI (.github/workflows/release.yml `deploy-prod`
+# job) — updated only after the `production` GitHub Environment's manual
+# approval gate is passed, following a successful staging deploy.
+#
+# Everything else (replicaCount, autoscaling, podDisruptionBudget,
+# topologySpreadConstraints, resources, security context) inherits
+# values.yaml's HA-on defaults as-is — production is the environment those
+# defaults were written for.
+
+image:
+  tag: ""                 # overwritten by CI on prod promotion
+
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: sample-nodejs.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: sample-nodejs-tls
+      hosts:
+        - sample-nodejs.example.com
