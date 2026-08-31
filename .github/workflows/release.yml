@@ -65,12 +65,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # QEMU emulation lets the (amd64) runner cross-build for arm64 - needed
+      # since the target deployment cluster (local minikube on Apple
+      # Silicon) is arm64, not because we need multi-arch support broadly.
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
       - uses: docker/setup-buildx-action@v3
 
       - name: Build image (local, for scanning)
         uses: docker/build-push-action@v6
         with:
           context: .
+          platforms: linux/arm64
           push: false
           load: true
           tags: ${{ env.IMAGE_NAME }}:${{ needs.version.outputs.new_tag }}
@@ -95,6 +103,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
+          platforms: linux/arm64
           push: true
           tags: |
             ${{ env.IMAGE_NAME }}:${{ needs.version.outputs.new_tag }}
