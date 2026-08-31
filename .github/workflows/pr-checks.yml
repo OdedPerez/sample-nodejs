@@ -32,18 +32,21 @@ jobs:
       - run: npm run lint
 
   sast:
-    name: SAST (placeholder)
+    name: SAST (Semgrep)
     runs-on: ubuntu-latest
     needs: lint
+    container:
+      image: semgrep/semgrep
     steps:
-      # TODO: deliberately deferred - wire in Semgrep or CodeQL here, gated
-      # to fail this job on critical findings. Left as an explicit stub
-      # (rather than omitted) so downstream jobs already depend on it and
-      # adding the real tool later doesn't require touching the DAG.
-      - name: SAST placeholder
-        run: |
-          echo "::notice::SAST is intentionally deferred to a later iteration (see plan)."
-          echo "TODO: add Semgrep/CodeQL, fail this job on critical severity findings."
+      - uses: actions/checkout@v4
+
+      # --config auto picks rulesets based on detected languages/frameworks
+      # (Node/Express here). Gated on ERROR severity only, same "block on
+      # the serious stuff, not on noise" philosophy as the Trivy image scan
+      # gate - WARNING/INFO findings still print in the log for visibility
+      # but don't fail the job.
+      - name: Run Semgrep
+        run: semgrep scan --config auto --severity ERROR --error
 
   build-scan-push:
     name: Build, scan, push (dev tag)

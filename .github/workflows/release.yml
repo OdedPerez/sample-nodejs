@@ -31,10 +31,27 @@ jobs:
 
       - run: npm run lint
 
+  sast:
+    name: SAST (Semgrep)
+    runs-on: ubuntu-latest
+    needs: verify
+    container:
+      image: semgrep/semgrep
+    steps:
+      - uses: actions/checkout@v4
+
+      # Self-contained, same as `verify` above: don't assume pr-checks.yml's
+      # sast job already ran - main can be pushed to directly, not just via
+      # a reviewed PR (no branch protection requiring PRs is configured on
+      # this repo), so this needs its own gate rather than trusting the PR
+      # path was taken.
+      - name: Run Semgrep
+        run: semgrep scan --config auto --severity ERROR --error
+
   version:
     name: Bump version
     runs-on: ubuntu-latest
-    needs: verify
+    needs: sast
     permissions:
       contents: write
     outputs:

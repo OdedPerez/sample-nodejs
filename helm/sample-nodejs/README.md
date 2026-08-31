@@ -10,6 +10,7 @@ helm/
     ├── Chart.yaml              # chart + app version
     ├── values.yaml             # all defaults (HA features ON)
     ├── values-minikube.yaml    # single-node overlay (HA features OFF)
+    ├── values-dev.yaml         # bumped by pr-checks.yml's deploy-dev job
     ├── .helmignore
     └── templates/
         ├── _helpers.tpl        # shared naming/labels
@@ -76,3 +77,12 @@ helm upgrade --install sample-nodejs helm/sample-nodejs \
 helm lint helm/sample-nodejs
 helm template sample-nodejs helm/sample-nodejs
 ```
+
+## Staging & production
+
+Not deployed manually with `helm upgrade` — [ArgoCD](https://argo-cd.readthedocs.io/)
+manages both, combining this chart with per-environment values from the
+separate [`sample-nodejs-gitops`](https://github.com/OdedPerez/sample-nodejs-gitops)
+repo via a multi-source `Application`. See that repo's README for the
+values/deploy flow, and this repo's root README for the CI/CD pipeline that
+feeds it.
