@@ -9,7 +9,7 @@
 # defaults were written for.
 
 image:
-  tag: "v0.0.3"
+  tag: "v0.0.4"
 
 ingress:
   enabled: true
