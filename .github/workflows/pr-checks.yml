@@ -56,7 +56,14 @@ jobs:
       contents: read
       packages: write
     steps:
+      # Default checkout for a pull_request event uses the auto-generated
+      # merge commit (base+head merged), which has a different SHA than
+      # the PR's actual head commit - pin explicitly so the tag computed
+      # below matches ArgoCD's {{.head_sha}}/{{.head_short_sha_7}}, which
+      # come from the real PR head via the GitHub API, not the merge ref.
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
 
       # --short=7 forces exactly 7 hex chars, matching ArgoCD's
       # {{.head_short_sha_7}} PR-generator field (see
