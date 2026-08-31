@@ -16,7 +16,7 @@ topologySpreadConstraints:
   enabled: false
 
 image:
-  tag: ""                 # overwritten by CI on every PR push
+  tag: "pr-1-fd46df0"
 
 ingress:
   enabled: true
