@@ -16,7 +16,7 @@ topologySpreadConstraints:
   enabled: false
 
 image:
-  tag: "pr-1-fd46df0"
+  tag: "pr-1-1154c2a"
 
 ingress:
   enabled: true
