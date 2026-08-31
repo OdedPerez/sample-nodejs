@@ -155,6 +155,12 @@ serviceMonitor:
   interval: 30s
   path: /metrics
 
+# Grafana dashboard ConfigMap (bonus). Requires kube-prometheus-stack's
+# Grafana sidecar (or equivalent dashboard-provisioning setup) to be
+# installed - it's what actually picks this up and imports it.
+grafanaDashboard:
+  enabled: false
+
 nodeSelector: {}
 tolerations: []
 affinity: {}

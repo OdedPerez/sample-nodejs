@@ -1,0 +1,15 @@
+{{- if .Values.grafanaDashboard.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "sample-nodejs.fullname" . }}-dashboard
+  labels:
+    {{- include "sample-nodejs.labels" . | nindent 4 }}
+    # Picked up by kube-prometheus-stack's Grafana sidecar (watches this
+    # label across all namespaces by default) and auto-provisioned - no
+    # manual dashboard import needed.
+    grafana_dashboard: "1"
+data:
+  sample-nodejs.json: |
+    {{- .Files.Get "files/grafana-dashboard.json" | nindent 4 }}
+{{- end }}
