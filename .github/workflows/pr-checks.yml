@@ -55,14 +55,17 @@ jobs:
     permissions:
       contents: read
       packages: write
-    outputs:
-      image_tag: ${{ steps.vars.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
 
+      # --short=7 forces exactly 7 hex chars, matching ArgoCD's
+      # {{.head_short_sha_7}} PR-generator field (see
+      # sample-nodejs-gitops/argocd/applicationset-dev.yaml) - both sides
+      # must compute the same tag independently since nothing commits it
+      # anywhere for the other side to read.
       - name: Compute image tag
         id: vars
-        run: echo "tag=pr-${{ github.event.pull_request.number }}-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+        run: echo "tag=pr-${{ github.event.pull_request.number }}-$(git rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
 
       # QEMU emulation lets the (amd64) runner cross-build for arm64 - needed
       # since the target deployment cluster (local minikube on Apple
@@ -108,35 +111,7 @@ jobs:
           push: true
           tags: ${{ env.IMAGE_NAME }}:${{ steps.vars.outputs.tag }}
 
-  deploy-dev:
-    name: Deploy to dev
-    runs-on: ubuntu-latest
-    needs: build-scan-push
-    # Same-repo branches only: a fork's PR can't be granted contents:write
-    # against this repo, so skip rather than fail.
-    if: github.event.pull_request.head.repo.full_name == github.repository
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref }}
-
-      - name: Bump values-dev.yaml image tag
-        env:
-          IMAGE_TAG: ${{ needs.build-scan-push.outputs.image_tag }}
-        run: |
-          sed -i -E "s/^(  tag: ).*/\1\"${IMAGE_TAG}\"/" helm/sample-nodejs/values-dev.yaml
-          grep "tag:" helm/sample-nodejs/values-dev.yaml
-
-      - name: Commit and push
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add helm/sample-nodejs/values-dev.yaml
-          if git diff --cached --quiet; then
-            echo "No changes to commit"
-          else
-            git commit -m "chore(dev): deploy PR #${{ github.event.pull_request.number }} (${{ needs.build-scan-push.outputs.image_tag }}) [skip ci]"
-            git push
-          fi
+  # No deploy-dev job: the per-PR dev environment is entirely driven by
+  # ArgoCD's sample-nodejs-dev ApplicationSet (see sample-nodejs-gitops),
+  # which derives image.tag from the PR's own number + short SHA rather
+  # than reading it from a git commit - nothing to push here.

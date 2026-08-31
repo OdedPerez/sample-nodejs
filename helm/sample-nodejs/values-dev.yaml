@@ -1,8 +1,9 @@
 # Dev environment overlay.
-# image.tag is managed by CI (.github/workflows/pr-checks.yml `deploy-dev`
-# job) — every push to an open PR overwrites it with that PR's freshly
-# built & Trivy-scanned image tag. Shared dev environment: whichever PR
-# pushed last "owns" it.
+# Deployed per-PR by sample-nodejs-gitops's ArgoCD ApplicationSet
+# (argocd/applicationset-dev.yaml) - one isolated namespace per open PR,
+# not a single shared dev environment. image.tag below is not actually
+# used: the ApplicationSet overrides it via a Helm parameter, derived
+# directly from each PR's own number + short SHA.
 
 replicaCount: 1
 
