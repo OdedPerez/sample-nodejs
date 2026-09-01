@@ -9,7 +9,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  IMAGE_NAME: ghcr.io/odedperez/sample-nodejs
   NODE_VERSION: "22"
 
 permissions:
@@ -93,7 +92,6 @@ jobs:
         run: |
           helm template helm/sample-nodejs
           helm template helm/sample-nodejs -f helm/sample-nodejs/values-minikube.yaml
-          helm template helm/sample-nodejs -f helm/sample-nodejs/values-dev.yaml
           helm template helm/sample-nodejs -f gitops/staging/values.yaml
           helm template helm/sample-nodejs -f gitops/production/values.yaml
 
@@ -142,35 +140,31 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  build-scan-push:
-    name: Build, scan, push (dev tag)
+  build-and-scan:
+    name: Build & scan (no push)
     runs-on: ubuntu-latest
     needs: [actionlint, lint, dockerfile-lint, helm-validate, sast, dependency-audit, secret-scan]
     permissions:
       contents: read
-      packages: write
     steps:
       # Default checkout for a pull_request event uses the auto-generated
       # merge commit (base+head merged), which has a different SHA than
-      # the PR's actual head commit - pin explicitly so the tag computed
-      # below matches ArgoCD's {{.head_sha}}/{{.head_short_sha_7}}, which
-      # come from the real PR head via the GitHub API, not the merge ref.
+      # the PR's actual head commit - pin explicitly so Trivy scans the
+      # commit that will actually be reviewed/merged.
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
-      # --short=7 forces exactly 7 hex chars, matching ArgoCD's
-      # {{.head_short_sha_7}} PR-generator field (see
-      # sample-nodejs-gitops/argocd/applicationset-dev.yaml) - both sides
-      # must compute the same tag independently since nothing commits it
-      # anywhere for the other side to read.
+      # Local-only tag - nothing downstream reads it, since nothing is
+      # pushed or deployed from a PR anymore.
       - name: Compute image tag
         id: vars
         run: echo "tag=pr-${{ github.event.pull_request.number }}-$(git rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
 
       # QEMU emulation lets the (amd64) runner cross-build for arm64 - needed
       # since the target deployment cluster (local minikube on Apple
-      # Silicon, including the per-PR dev environments) is arm64.
+      # Silicon) is arm64, and we want the scanned image to match what
+      # would actually be built for it.
       - uses: docker/setup-qemu-action@v3
         with:
           platforms: arm64
@@ -184,35 +178,19 @@ jobs:
           platforms: linux/arm64
           push: false
           load: true
-          tags: ${{ env.IMAGE_NAME }}:${{ steps.vars.outputs.tag }}
+          tags: sample-nodejs:${{ steps.vars.outputs.tag }}
 
-      # Blocks the rest of the job (and therefore the push below) on any
-      # HIGH/CRITICAL finding - nothing reaches the registry, so nothing is
-      # deployable, unless the scan passes.
+      # Proves the image builds cleanly and passes the same HIGH/CRITICAL
+      # gate release.yml enforces - nothing is pushed either way; this is
+      # purely a pre-merge signal.
       - name: Scan image with Trivy
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.IMAGE_NAME }}:${{ steps.vars.outputs.tag }}
+          image-ref: sample-nodejs:${{ steps.vars.outputs.tag }}
           severity: HIGH,CRITICAL
           exit-code: "1"
           ignore-unfixed: true
 
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Push image (post-scan)
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          platforms: linux/arm64
-          push: true
-          tags: ${{ env.IMAGE_NAME }}:${{ steps.vars.outputs.tag }}
-
-  # No deploy-dev job: the per-PR dev environment is entirely driven by
-  # ArgoCD's sample-nodejs-dev ApplicationSet (see sample-nodejs-gitops),
-  # which derives image.tag from the PR's own number + short SHA rather
-  # than reading it from a git commit - nothing to push here.
+  # PRs only build and scan - nothing is pushed to a registry or deployed
+  # anywhere. Pushing/tagging real, deployable images only happens on
+  # release.yml (push to main), after code has actually been merged.

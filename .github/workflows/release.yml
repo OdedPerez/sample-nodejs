@@ -93,7 +93,6 @@ jobs:
         run: |
           helm template helm/sample-nodejs
           helm template helm/sample-nodejs -f helm/sample-nodejs/values-minikube.yaml
-          helm template helm/sample-nodejs -f helm/sample-nodejs/values-dev.yaml
           helm template helm/sample-nodejs -f gitops/staging/values.yaml
           helm template helm/sample-nodejs -f gitops/production/values.yaml
 
