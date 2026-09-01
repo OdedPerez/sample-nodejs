@@ -10,8 +10,6 @@ helm/
     ├── Chart.yaml              # chart + app version
     ├── values.yaml             # all defaults (HA features ON)
     ├── values-minikube.yaml    # single-node overlay (HA features OFF)
-    ├── values-dev.yaml         # per-PR dev overlay; image.tag comes from
-    │                           # ArgoCD's ApplicationSet, not this file
     ├── .helmignore
     └── templates/
         ├── _helpers.tpl        # shared naming/labels
