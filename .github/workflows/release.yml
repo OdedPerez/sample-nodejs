@@ -211,6 +211,13 @@ jobs:
           sed -i -E "s/^(  tag: ).*/\1\"${IMAGE_TAG}\"/" staging/values.yaml
           grep "tag:" staging/values.yaml
 
+      - uses: azure/setup-helm@v4
+        with:
+          version: v4.2.4
+
+      - name: Render chart with the new tag before pushing
+        run: helm template helm/sample-nodejs -f staging/values.yaml > /dev/null
+
       - name: Commit and push
         run: |
           git config user.name "github-actions[bot]"
@@ -241,6 +248,13 @@ jobs:
         run: |
           sed -i -E "s/^(  tag: ).*/\1\"${IMAGE_TAG}\"/" production/values.yaml
           grep "tag:" production/values.yaml
+
+      - uses: azure/setup-helm@v4
+        with:
+          version: v4.2.4
+
+      - name: Render chart with the new tag before pushing
+        run: helm template helm/sample-nodejs -f production/values.yaml > /dev/null
 
       - name: Commit and push
         run: |
