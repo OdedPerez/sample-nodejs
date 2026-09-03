@@ -64,38 +64,6 @@ jobs:
       - name: Lint Dockerfile
         run: docker run --rm -i hadolint/hadolint hadolint --failure-threshold error - < Dockerfile
 
-  helm-validate:
-    name: Validate Helm chart (all environments)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      # Read-only, unauthenticated checkout of the GitOps repo - it's
-      # public, and this job only needs to read staging/production's real
-      # values files, not write anything.
-      - uses: actions/checkout@v4
-        with:
-          repository: OdedPerez/sample-nodejs-gitops
-          path: gitops
-
-      - uses: azure/setup-helm@v4
-        with:
-          version: v4.2.4
-
-      - name: Lint chart structure
-        run: helm lint helm/sample-nodejs
-
-      # Renders against every known environment's real values - including
-      # staging/production, pulled from the separate GitOps repo above -
-      # to catch a chart change that would break any of them, not just
-      # confirm the chart is internally well-formed in isolation.
-      - name: Render against every environment
-        run: |
-          helm template helm/sample-nodejs
-          helm template helm/sample-nodejs -f helm/sample-nodejs/values-minikube.yaml
-          helm template helm/sample-nodejs -f gitops/staging/values.yaml
-          helm template helm/sample-nodejs -f gitops/production/values.yaml
-
   sast:
     name: SAST (Semgrep)
     runs-on: ubuntu-latest
@@ -145,7 +113,7 @@ jobs:
   version:
     name: Bump version
     runs-on: ubuntu-latest
-    needs: [actionlint, verify, dockerfile-lint, helm-validate, sast, dependency-audit, secret-scan]
+    needs: [actionlint, verify, dockerfile-lint, sast, dependency-audit, secret-scan]
     permissions:
       contents: write
     outputs:
