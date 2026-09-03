@@ -21,9 +21,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Official install method from actionlint's own docs, rather than a
-      # third-party wrapper action, to avoid uncertainty about an
-      # unfamiliar action's exact input schema.
       - name: Install actionlint
         run: bash <(curl -s https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
 
@@ -51,15 +48,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Runs hadolint's own official image directly via `docker run` on the
-      # normal runner, rather than a third-party wrapper action (whose
-      # exact default failure threshold turned out to be stricter than
-      # local CLI testing suggested, failing this job for real in CI on
-      # info-level findings) or a `container:`-scoped job (that image is a
-      # minimal wrapper unlikely to have the Node.js/git actions/checkout
-      # needs to run inside it). -t/--failure-threshold is hadolint's own
-      # documented flag, verified locally first, same as the exit code
-      # confirmed locally below.
       - name: Lint Dockerfile
         run: docker run --rm -i hadolint/hadolint hadolint --failure-threshold error - < Dockerfile
 
@@ -71,11 +59,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # --config auto picks rulesets based on detected languages/frameworks
-      # (Node/Express here). Gated on ERROR severity only, same "block on
-      # the serious stuff, not on noise" philosophy as the Trivy image scan
-      # gate - WARNING/INFO findings still print in the log for visibility
-      # but don't fail the job.
       - name: Run Semgrep
         run: semgrep scan --config auto --severity ERROR --error
 
@@ -92,8 +75,6 @@ jobs:
 
       - run: npm ci
 
-      # Gated on high/critical only, same philosophy as the Trivy image
-      # scan - moderate findings stay visible in the log but non-blocking.
       - run: npm audit --audit-level=high
 
   secret-scan:
@@ -115,24 +96,14 @@ jobs:
     permissions:
       contents: read
     steps:
-      # Default checkout for a pull_request event uses the auto-generated
-      # merge commit (base+head merged), which has a different SHA than
-      # the PR's actual head commit - pin explicitly so Trivy scans the
-      # commit that will actually be reviewed/merged.
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
-      # Local-only tag - nothing downstream reads it, since nothing is
-      # pushed or deployed from a PR anymore.
       - name: Compute image tag
         id: vars
         run: echo "tag=pr-${{ github.event.pull_request.number }}-$(git rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
 
-      # QEMU emulation lets the (amd64) runner cross-build for arm64 - needed
-      # since the target deployment cluster (local minikube on Apple
-      # Silicon) is arm64, and we want the scanned image to match what
-      # would actually be built for it.
       - uses: docker/setup-qemu-action@v3
         with:
           platforms: arm64
@@ -148,9 +119,6 @@ jobs:
           load: true
           tags: sample-nodejs:${{ steps.vars.outputs.tag }}
 
-      # Proves the image builds cleanly and passes the same HIGH/CRITICAL
-      # gate release.yml enforces - nothing is pushed either way; this is
-      # purely a pre-merge signal.
       - name: Scan image with Trivy
         uses: aquasecurity/trivy-action@master
         with:
@@ -158,7 +126,3 @@ jobs:
           severity: HIGH,CRITICAL
           exit-code: "1"
           ignore-unfixed: true
-
-  # PRs only build and scan - nothing is pushed to a registry or deployed
-  # anywhere. Pushing/tagging real, deployable images only happens on
-  # release.yml (push to main), after code has actually been merged.
